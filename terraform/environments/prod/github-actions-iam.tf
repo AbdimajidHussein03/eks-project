@@ -24,15 +24,14 @@ data "aws_iam_policy_document" "github_actions_trust" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:AbdimajidHussein03/eks-project:*"
+        "repo:AbdimajidHussein03@217622941/eks-project@1342833423:ref:refs/heads/main"
       ]
     }
   }
 }
-
 # 2. IAM ROLE
 # The AWS identity GitHub Actions will assume
 
