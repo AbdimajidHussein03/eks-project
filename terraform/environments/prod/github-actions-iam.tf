@@ -8,7 +8,6 @@ data "aws_iam_policy_document" "github_actions_trust" {
 
     principals {
       type = "Federated"
-
       identifiers = [
         "arn:aws:iam::583931059504:oidc-provider/token.actions.githubusercontent.com"
       ]
@@ -21,23 +20,18 @@ data "aws_iam_policy_document" "github_actions_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
-
-      values = [
-        "sts.amazonaws.com"
-      ]
+      values   = ["sts.amazonaws.com"]
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-
       values = [
-        "repo:AbdimajidHussein03/eks-project:ref:refs/heads/main"
+        "repo:AbdimajidHussein03/eks-project:*"
       ]
     }
   }
 }
-
 
 # 2. IAM ROLE
 # The AWS identity GitHub Actions will assume
