@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: eks-2048
+  labels:
+    app: eks-2048
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: eks-2048
+
+  template:
+    metadata:
+      labels:
+        app: eks-2048
+
+    spec:
+      containers:
+        - name: eks-2048
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
