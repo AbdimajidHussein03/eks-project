@@ -1,0 +1,131 @@
+# PIPELINE 2 - DOCKER, SECURITY AND KUBERNETES
+
+# Purpose:
+# 1. Scan Terraform code with Checkov
+# 2. Authenticate to AWS using OIDC
+# 3. Build the Docker image
+# 4. Scan the image with Trivy
+# 5. Push the image to Amazon ECR
+# 6. Connect to the existing EKS cluster
+# 7. Deploy the application using Helm
+
+name: Application Pipeline
+
+# Run this pipeline on pushes to main.
+on:
+  push:
+    branches:
+      - main
+
+# Allow GitHub to request an OIDC token and read the repository.
+permissions:
+  id-token: write
+  contents: read
+
+# Reusable values for the pipeline.
+env:
+  AWS_REGION: eu-west-2
+  EKS_CLUSTER: eks-project
+  ECR_REGISTRY: 583931059504.dkr.ecr.eu-west-2.amazonaws.com
+  ECR_REPOSITORY: eks-2048
+  ORIGINAL_EKS_CIDR: 45.150.144.196/32
+
+jobs:
+  application:
+    # Run the pipeline on a temporary Ubuntu runner.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Copy the repository onto the runner.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Scan Terraform code for security misconfigurations.
+      - name: Scan Terraform with Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform
+
+      # Authenticate to AWS using OIDC and the application IAM role.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::583931059504:role/eks-project-github-actions-application
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Authenticate Docker to the private ECR registry.
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build the application image and tag it with the Git commit SHA.
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+            ./app
+
+      # Scan the Docker image for HIGH and CRITICAL vulnerabilities.
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      # Push the scanned image to Amazon ECR.
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      # Get the temporary GitHub runner public IP.
+      - name: Get GitHub runner public IP
+        id: runner-ip
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          echo "Runner IP: $RUNNER_IP"
+
+      # Temporarily allow the runner IP to reach the EKS API.
+      - name: Allow runner IP on EKS API
+        run: |
+          aws eks update-cluster-config \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }} \
+            --resources-vpc-config endpointPublicAccess=true,publicAccessCidrs="${{ env.ORIGINAL_EKS_CIDR }},${{ steps.runner-ip.outputs.ip }}/32"
+
+      # Wait until AWS finishes updating the EKS API allowlist.
+      - name: Wait for EKS access update
+        run: |
+          UPDATE_ID=$(aws eks list-updates \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }} \
+            --query 'updateIds[0]' \
+            --output text)
+
+          aws eks wait update-complete \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }} \
+            --update-id "$UPDATE_ID"
+
+      # Create kubeconfig so Helm can connect to EKS.
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }}
+
+      # Deploy the exact image built in this pipeline using Helm.
+      - name: Deploy to EKS with Helm
+        run: |
+          helm upgrade --install eks-2048 ./helm/eks-2048 \
+            --set image.tag=${{ github.sha }}
+
+      # Always remove the temporary runner IP after deployment.
+      - name: Restore EKS API access
+        if: always()
+        run: |
+          aws eks update-cluster-config \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }} \
+            --resources-vpc-config endpointPublicAccess=true,publicAccessCidrs="${{ env.ORIGINAL_EKS_CIDR }}"
