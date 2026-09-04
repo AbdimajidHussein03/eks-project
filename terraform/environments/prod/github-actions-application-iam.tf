@@ -54,7 +54,8 @@ data "aws_iam_policy_document" "github_actions_application_eks" {
     actions = [
       "eks:DescribeCluster",
       "eks:UpdateClusterConfig",
-      "eks:DescribeUpdate"
+      "eks:DescribeUpdate",
+      "eks:ListUpdates"
     ]
 
     resources = [
