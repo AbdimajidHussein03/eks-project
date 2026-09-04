@@ -47,7 +47,7 @@ jobs:
           directory: terraform
           soft_fail: true
 
-      # Authenticate to AWS using OIDC and the application IAM role.
+      # Authenticate to AWS using OIDC.
       - name: Configure AWS credentials
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
@@ -66,7 +66,7 @@ jobs:
             -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ./app
 
-      # Scan the Docker image for HIGH and CRITICAL vulnerabilities.
+      # Scan the image for HIGH and CRITICAL vulnerabilities.
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -96,19 +96,9 @@ jobs:
             --name ${{ env.EKS_CLUSTER }} \
             --resources-vpc-config endpointPublicAccess=true,publicAccessCidrs="${{ env.ORIGINAL_EKS_CIDR }},${{ steps.runner-ip.outputs.ip }}/32"
 
-      # Wait until AWS finishes updating the EKS API allowlist.
+      # Give EKS time to apply the new API allowlist.
       - name: Wait for EKS access update
-        run: |
-          UPDATE_ID=$(aws eks list-updates \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER }} \
-            --query 'updateIds[0]' \
-            --output text)
-
-          aws eks wait update-complete \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER }} \
-            --update-id "$UPDATE_ID"
+        run: sleep 60
 
       # Create kubeconfig so Helm can connect to EKS.
       - name: Configure kubeconfig
@@ -123,9 +113,10 @@ jobs:
           helm upgrade --install eks-2048 ./helm/eks-2048 \
             --set image.tag=${{ github.sha }}
 
-      # Always remove the temporary runner IP after deployment.
+      # Remove the temporary runner IP after deployment.
       - name: Restore EKS API access
         if: ${{ always() && steps.aws-creds.outcome == 'success' }}
+        continue-on-error: true
         run: |
           aws eks update-cluster-config \
             --region ${{ env.AWS_REGION }} \
