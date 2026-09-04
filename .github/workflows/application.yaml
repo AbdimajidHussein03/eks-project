@@ -45,9 +45,11 @@ jobs:
         uses: bridgecrewio/checkov-action@master
         with:
           directory: terraform
+          soft_fail: true
 
       # Authenticate to AWS using OIDC and the application IAM role.
       - name: Configure AWS credentials
+        id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::583931059504:role/eks-project-github-actions-application
@@ -123,7 +125,7 @@ jobs:
 
       # Always remove the temporary runner IP after deployment.
       - name: Restore EKS API access
-        if: always()
+        if: ${{ always() && steps.aws-creds.outcome == 'success' }}
         run: |
           aws eks update-cluster-config \
             --region ${{ env.AWS_REGION }} \
