@@ -88,6 +88,10 @@ jobs:
           echo "ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
           echo "Runner IP: $RUNNER_IP"
 
+      # Give any previous EKS update time to finish.
+      - name: Wait before updating EKS access
+        run: sleep 90
+
       # Temporarily allow the runner IP to reach the EKS API.
       - name: Allow runner IP on EKS API
         run: |
@@ -98,7 +102,7 @@ jobs:
 
       # Give EKS time to apply the new API allowlist.
       - name: Wait for EKS access update
-        run: sleep 60
+        run: sleep 90
 
       # Create kubeconfig so Helm can connect to EKS.
       - name: Configure kubeconfig
