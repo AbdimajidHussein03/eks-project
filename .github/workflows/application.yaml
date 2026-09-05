@@ -1,72 +1,74 @@
-# PIPELINE 2 - DOCKER, SECURITY AND KUBERNETES
+# PIPELINE 2 - APPLICATION CI
 
 # Purpose:
-# 1. Scan Terraform code with Checkov
-# 2. Authenticate to AWS using OIDC
-# 3. Build the Docker image
-# 4. Scan the image with Trivy
-# 5. Push the image to Amazon ECR
-# 6. Connect to the existing EKS cluster
-# 7. Deploy the application using Helm
+# 1. Scan Terraform
+# 2. Build the Docker image
+# 3. Scan the image
+# 4. Push the image to ECR
+# 5. Update Git with the new image tag
+# 6. Let Argo CD deploy it
 
 name: Application Pipeline
 
-# Run this pipeline on pushes to main.
+# Run the pipeline when code is pushed to main.
+# Ignore values.yaml so the pipeline does not trigger itself again.
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "helm/eks-2048/values.yaml"
 
-# Allow GitHub to request an OIDC token and read the repository.
+# Allow GitHub Actions to use OIDC
+# and push the updated image tag back to GitHub.
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
-# Reusable values for the pipeline.
+# Reusable values used throughout the pipeline.
 env:
   AWS_REGION: eu-west-2
-  EKS_CLUSTER: eks-project
   ECR_REGISTRY: 583931059504.dkr.ecr.eu-west-2.amazonaws.com
   ECR_REPOSITORY: eks-2048
-  ORIGINAL_EKS_CIDR: 45.150.144.196/32
 
 jobs:
   application:
-    # Run the pipeline on a temporary Ubuntu runner.
+
+    # Use a temporary Ubuntu machine to run the pipeline.
     runs-on: ubuntu-latest
 
     steps:
-      # Copy the repository onto the runner.
+
+      # Download the repository onto the GitHub runner.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Scan Terraform code for security misconfigurations.
+      # Scan the Terraform code for security misconfigurations.
       - name: Scan Terraform with Checkov
         uses: bridgecrewio/checkov-action@master
         with:
           directory: terraform
           soft_fail: true
 
-      # Authenticate to AWS using OIDC.
+      # Authenticate the GitHub runner to AWS using OIDC.
       - name: Configure AWS credentials
-        id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::583931059504:role/eks-project-github-actions-application
           aws-region: ${{ env.AWS_REGION }}
 
-      # Authenticate Docker to the private ECR registry.
+      # Login Docker to our private Amazon ECR registry.
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Build the application image and tag it with the Git commit SHA.
+      # Build the Docker image and tag it with the Git commit SHA.
       - name: Build Docker image
         run: |
           docker build \
             -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ./app
 
-      # Scan the image for HIGH and CRITICAL vulnerabilities.
+      # Scan the Docker image for HIGH and CRITICAL vulnerabilities.
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -75,54 +77,22 @@ jobs:
           exit-code: 1
           severity: CRITICAL,HIGH
 
-      # Push the scanned image to Amazon ECR.
+      # Push the safe Docker image into Amazon ECR.
       - name: Push Docker image to ECR
         run: |
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      # Get the temporary GitHub runner public IP.
-      - name: Get GitHub runner public IP
-        id: runner-ip
+      # Replace the old image tag in values.yaml with the new Git SHA.
+      - name: Update image tag
         run: |
-          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
-          echo "ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
-          echo "Runner IP: $RUNNER_IP"
+          sed -i "s|tag: .*|tag: ${{ github.sha }}|" helm/eks-2048/values.yaml
 
-      # Give any previous EKS update time to finish.
-      - name: Wait before updating EKS access
-        run: sleep 90
-
-      # Temporarily allow the runner IP to reach the EKS API.
-      - name: Allow runner IP on EKS API
+      # Commit and push the new desired image tag back to GitHub.
+      # Argo CD will see this Git change and deploy the new image.
+      - name: Push updated tag to Git
         run: |
-          aws eks update-cluster-config \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER }} \
-            --resources-vpc-config endpointPublicAccess=true,publicAccessCidrs="${{ env.ORIGINAL_EKS_CIDR }},${{ steps.runner-ip.outputs.ip }}/32"
-
-      # Give EKS time to apply the new API allowlist.
-      - name: Wait for EKS access update
-        run: sleep 90
-
-      # Create kubeconfig so Helm can connect to EKS.
-      - name: Configure kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER }}
-
-      # Deploy the exact image built in this pipeline using Helm.
-      - name: Deploy to EKS with Helm
-        run: |
-          helm upgrade --install eks-2048 ./helm/eks-2048 \
-            --set image.tag=${{ github.sha }}
-
-      # Remove the temporary runner IP after deployment.
-      - name: Restore EKS API access
-        if: ${{ always() && steps.aws-creds.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-          aws eks update-cluster-config \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER }} \
-            --resources-vpc-config endpointPublicAccess=true,publicAccessCidrs="${{ env.ORIGINAL_EKS_CIDR }}"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add helm/eks-2048/values.yaml
+          git commit -m "Update image tag to ${{ github.sha }}"
+          git push
