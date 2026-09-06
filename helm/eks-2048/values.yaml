@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: 583931059504.dkr.ecr.eu-west-2.amazonaws.com/eks-2048
-  tag: 3120122e0c0951bc2a8db6ea4a4bdfaf13c490e9
+  tag: 6eb2db1d2077c5d85949cc0c9a09507aee249aca
   pullPolicy: IfNotPresent
 
 service:
