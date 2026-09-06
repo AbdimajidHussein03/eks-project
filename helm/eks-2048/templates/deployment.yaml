@@ -29,9 +29,7 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
+            
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
