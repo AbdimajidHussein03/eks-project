@@ -24,6 +24,8 @@ module "eks" {
   admin_principal_arn             = "arn:aws:iam::583931059504:user/terraform-eks-project"
   control_plane_security_group_id = module.security.control_plane_security_group_id
   node_security_group_id          = module.security.node_security_group_id
+
+  enable_network_policy = true
 }
 
 module "security" {

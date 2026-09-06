@@ -81,3 +81,15 @@ resource "aws_eks_access_policy_association" "admin" {
     aws_eks_access_entry.admin
   ]
 }
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.this.name
+  addon_name   = "vpc-cni"
+
+  configuration_values = jsonencode({
+    enableNetworkPolicy = tostring(var.enable_network_policy)
+  })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+}

@@ -42,3 +42,9 @@ variable "node_security_group_id" {
   description = "Security group ID for EKS worker nodes"
   type        = string
 }
+
+variable "enable_network_policy" {
+  description = "Enable Kubernetes NetworkPolicy support in the AWS VPC CNI"
+  type        = bool
+  default     = false
+}
