@@ -3,8 +3,6 @@ kind: Deployment
 
 metadata:
   name: eks-2048
-  labels:
-    app: eks-2048
 
 spec:
   replicas: {{ .Values.replicaCount }}
@@ -19,6 +17,9 @@ spec:
         app: eks-2048
 
     spec:
+      serviceAccountName: eks-2048
+      automountServiceAccountToken: false
+
       containers:
         - name: eks-2048
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -29,7 +30,6 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
-            
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
