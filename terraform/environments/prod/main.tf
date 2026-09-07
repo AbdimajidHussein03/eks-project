@@ -35,12 +35,6 @@ module "security" {
   cluster_name = var.cluster_name
 }
 
-module "ecr" {
-  source = "../../modules/ecr"
-
-  repository_name = "eks-2048"
-}
-
 module "external_dns_iam" {
   source = "../../modules/iam/external-dns"
 
