@@ -9,7 +9,7 @@ module "vpc" {
 }
 
 module "iam" {
-  source = "../../modules/iam"
+  source = "../../modules/iam/eks"
 }
 
 module "eks" {
@@ -42,7 +42,7 @@ module "ecr" {
 }
 
 module "external_dns_iam" {
-  source = "../../modules/external-dns-iam"
+  source = "../../modules/iam/external-dns"
 
   eks_oidc_issuer_url = module.eks.oidc_issuer_url
   route53_zone_name   = "abdimajidcloud.com"
