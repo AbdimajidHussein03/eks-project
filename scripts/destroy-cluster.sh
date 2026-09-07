@@ -6,6 +6,9 @@ AWS_REGION="eu-west-2"
 CLUSTER_NAME="eks-project"
 TF_DIR="terraform/environments/prod"
 
+HOSTED_ZONE_ID="Z04928591MJEI8DP2GRRQ"
+APP_DOMAIN="eks.abdimajidcloud.com"
+
 echo "========================================"
 echo "Preparing cluster for Terraform destroy"
 echo "========================================"
@@ -21,9 +24,32 @@ kubectl delete application eks-2048 \
   --ignore-not-found=true || true
 
 echo "Deleting application ingress..."
-kubectl delete ingress \
-  -l app=eks-2048 \
+kubectl delete ingress eks-2048-ingress \
+  -n default \
   --ignore-not-found=true || true
+
+echo "Waiting for ExternalDNS to remove Route53 records..."
+
+for i in {1..30}; do
+  DNS_COUNT=$(aws route53 list-resource-record-sets \
+    --hosted-zone-id "$HOSTED_ZONE_ID" \
+    --query "length(ResourceRecordSets[?contains(Name, '$APP_DOMAIN')])" \
+    --output text)
+
+  if [ "$DNS_COUNT" -eq 0 ]; then
+    echo "Application DNS records removed."
+    break
+  fi
+
+  echo "Still waiting for $DNS_COUNT DNS record(s) to be removed..."
+  sleep 10
+done
+
+echo "Remaining application DNS records:"
+aws route53 list-resource-record-sets \
+  --hosted-zone-id "$HOSTED_ZONE_ID" \
+  --query "ResourceRecordSets[?contains(Name, '$APP_DOMAIN')].[Name,Type]" \
+  --output text || true
 
 echo "Removing ExternalDNS..."
 helm uninstall external-dns \

@@ -14,7 +14,12 @@ aws eks update-kubeconfig \
   --region "$AWS_REGION" \
   --name "$CLUSTER_NAME"
 
-echo "Waiting for EKS nodes..."
+echo "Waiting for EKS nodes to appear..."
+until kubectl get nodes --no-headers 2>/dev/null | grep -q .; do
+  sleep 10
+done
+
+echo "Waiting for EKS nodes to become Ready..."
 kubectl wait \
   --for=condition=Ready \
   nodes \
@@ -26,7 +31,6 @@ helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx || true
 helm repo add jetstack https://charts.jetstack.io || true
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
 helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/ || true
-
 helm repo update
 
 echo "Installing NGINX Ingress Controller..."
@@ -80,7 +84,7 @@ helm upgrade --install external-dns external-dns/external-dns \
   --set serviceAccount.create=false \
   --set serviceAccount.name=external-dns \
   --set provider.name=aws \
-  --set policy=upsert-only \
+  --set policy=sync \
   --set registry=txt \
   --set txtOwnerId=eks-project \
   --set domainFilters[0]=abdimajidcloud.com \
@@ -110,6 +114,7 @@ echo "Creating Argo CD application..."
 cat <<'APP' | kubectl apply -f -
 apiVersion: argoproj.io/v1alpha1
 kind: Application
+
 metadata:
   name: eks-2048
   namespace: argocd
