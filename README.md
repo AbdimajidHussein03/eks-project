@@ -10,7 +10,8 @@ The application deployed is the **2048 web application**, exposed through a cust
 
 ## Architecture
 
-![EKS Architecture](docs/images/architecture.png)
+<img width="1426" height="711" alt="Screenshot 2026-09-08 230519" src="https://github.com/user-attachments/assets/f7131000-1575-4d2f-939c-83a8a3cd99bc" />
+
 
 ### Application Traffic
 
