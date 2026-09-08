@@ -110,7 +110,7 @@ GitHub Actions builds and scans the image, pushes it to ECR and updates the imag
 
 This keeps **Git as the source of truth** for application deployment.
 
-![Argo CD](docs/images/argocd.png)
+<img width="1862" height="1062" alt="Screenshot 2026-09-05 130245" src="https://github.com/user-attachments/assets/bb9d2aaa-6d81-4e4d-b24b-e4941379693b" />
 
 ---
 
@@ -138,12 +138,12 @@ During development, Trivy detected vulnerabilities in the base container image. 
 Metrics include pod, node, namespace, CPU and memory information.
 
 ### Prometheus
+<img width="1913" height="867" alt="Screenshot 2026-09-05 135523" src="https://github.com/user-attachments/assets/92150f3a-aa1c-4c98-9eca-2aa6e1728530" />
 
-![Prometheus](docs/images/prometheus.png)
 
 ### Grafana
 
-![Grafana](docs/images/grafana.png)
+<img width="1852" height="960" alt="Screenshot 2026-09-05 142704" src="https://github.com/user-attachments/assets/d9fe1b3f-bdfe-433f-93e4-d95fb0a58f02" />
 
 ---
 
