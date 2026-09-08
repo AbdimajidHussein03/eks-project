@@ -1,3 +1,4 @@
+
 # Amazon EKS Platform with Terraform, GitOps & CI/CD
 
 A production-style Kubernetes platform built on **Amazon EKS**, provisioned with **Terraform** and deployed using **Helm and Argo CD**.
@@ -72,7 +73,8 @@ Two GitHub Actions pipelines automate the platform.
 
 The Terraform pipeline authenticates to AWS using **GitHub OIDC** and manages the EKS infrastructure without storing long-lived AWS credentials.
 
-![Terraform Pipeline](docs/images/terraform-pipeline.png)
+<img width="230" height="52" alt="Screenshot 2026-09-08 231852" src="https://github.com/user-attachments/assets/6e737d3b-f77b-4618-9b16-c9a1e99e6444" />
+
 
 ### Application Pipeline
 
@@ -98,7 +100,8 @@ Amazon EKS
 
 Images are tagged using the **Git commit SHA**, providing traceability between source code and the version running in Kubernetes.
 
-![Application Pipeline](docs/images/application-pipeline.png)
+<img width="240" height="52" alt="Screenshot 2026-09-08 231828" src="https://github.com/user-attachments/assets/4bbd285a-30ac-4600-8baf-22542e270ea8" />
+
 
 ---
 
