@@ -153,7 +153,8 @@ The final 2048 application is deployed to EKS and exposed through:
 
 `https://eks.abdimajidcloud.com`
 
-![2048 Application](docs/images/application.png)
+<img width="1886" height="1058" alt="Screenshot 2026-09-06 211617" src="https://github.com/user-attachments/assets/3b9fa61d-2dcd-460a-ad7a-81cf7841de15" />
+
 
 ---
 
