@@ -4,12 +4,7 @@
   <strong>A production-style Kubernetes platform on AWS demonstrating infrastructure as code, secure CI/CD, GitOps delivery, automated DNS/TLS, workload hardening, and full-stack observability.</strong>
 </p>
 
-<p align="center">
-  <a href="https://eks.abdimajidcloud.com"><strong>Live App</strong></a> ·
-  <a href="https://argocd.abdimajidcloud.com"><strong>Argo CD</strong></a> ·
-  <a href="https://prometheus.abdimajidcloud.com"><strong>Prometheus</strong></a> ·
-  <a href="https://grafana.abdimajidcloud.com"><strong>Grafana</strong></a>
-</p>
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/AWS-EKS-FF9900?logo=amazonaws&logoColor=white" alt="AWS EKS" />
