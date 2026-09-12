@@ -630,7 +630,8 @@ ExternalDNS Kubernetes release
 
 All three Argo CD applications are shown as **Healthy** and **Synced** through the custom HTTPS Argo CD endpoint.
 
-![Argo CD applications healthy and synced](docs/images/argocd.png)
+<img width="1394" height="721" alt="argocd" src="https://github.com/user-attachments/assets/bcb05d2f-71b4-47ca-beb2-eae48e791190" />
+
 
 This screenshot demonstrates:
 
@@ -866,7 +867,9 @@ up
 
 and returns active scrape targets from the EKS environment.
 
-![Prometheus up query showing live EKS scrape targets](docs/images/prometheus.png)
+<img width="1865" height="989" alt="Screenshot 2026-09-12 132832" src="https://github.com/user-attachments/assets/327e3734-5198-4229-9934-19da50e50371" />
+
+
 
 The `up` metric is particularly useful as evidence because it shows Prometheus is not merely reachable; it is actively scraping live cluster targets.
 
@@ -886,7 +889,8 @@ The cluster dashboard below shows real metrics from the running EKS platform, in
 
 ## Observability Evidence — Grafana
 
-![Grafana Kubernetes compute resources dashboard](docs/images/grafana.png)
+<img width="1834" height="1129" alt="Screenshot 2026-09-12 143803" src="https://github.com/user-attachments/assets/16308825-7f56-4fbe-9587-5f5a958dc8ff" />
+
 
 At the time of the screenshot, the dashboard was visualising live usage from namespaces including:
 
