@@ -1,31 +1,21 @@
 # PIPELINE 2 - APPLICATION CI
 
-# Purpose:
-# 1. Scan Terraform
-# 2. Build the Docker image
-# 3. Scan the image
-# 4. Push the image to ECR
-# 5. Update Git with the new image tag
-# 6. Let Argo CD deploy it
-
 name: Application Pipeline
 
-# Run the pipeline when code is pushed to main.
-# Ignore values.yaml so the pipeline does not trigger itself again.
 on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "helm/eks-2048/values.yaml"
+    paths:
+      - "app/**"
+      - "helm/eks-2048/templates/**"
+      - "helm/eks-2048/Chart.yaml"
+      - ".github/workflows/application.yaml"
 
-# Allow GitHub Actions to use OIDC
-# and push the updated image tag back to GitHub.
 permissions:
   id-token: write
   contents: write
 
-# Reusable values used throughout the pipeline.
 env:
   AWS_REGION: eu-west-2
   ECR_REGISTRY: 583931059504.dkr.ecr.eu-west-2.amazonaws.com
@@ -33,42 +23,33 @@ env:
 
 jobs:
   application:
-
-    # Use a temporary Ubuntu machine to run the pipeline.
     runs-on: ubuntu-latest
 
     steps:
-
-      # Download the repository onto the GitHub runner.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Scan the Terraform code for security misconfigurations.
       - name: Scan Terraform with Checkov
         uses: bridgecrewio/checkov-action@master
         with:
           directory: terraform
           soft_fail: true
 
-      # Authenticate the GitHub runner to AWS using OIDC.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::583931059504:role/eks-project-github-actions-application
           aws-region: ${{ env.AWS_REGION }}
 
-      # Login Docker to our private Amazon ECR registry.
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Build the Docker image and tag it with the Git commit SHA.
       - name: Build Docker image
         run: |
           docker build \
             -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ./app
 
-      # Scan the Docker image for HIGH and CRITICAL vulnerabilities.
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -77,18 +58,14 @@ jobs:
           exit-code: 1
           severity: CRITICAL,HIGH
 
-      # Push the safe Docker image into Amazon ECR.
       - name: Push Docker image to ECR
         run: |
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      # Replace the old image tag in values.yaml with the new Git SHA.
       - name: Update image tag
         run: |
           sed -i "s|tag: .*|tag: ${{ github.sha }}|" helm/eks-2048/values.yaml
 
-      # Commit and push the new desired image tag back to GitHub.
-      # Argo CD will see this Git change and deploy the new image.
       - name: Push updated tag to Git
         run: |
           git config user.name "github-actions"
