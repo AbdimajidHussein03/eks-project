@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: eks-2048-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+    - hosts:
+        - eks.abdimajidcloud.com
+      secretName: eks-2048-tls
+
+  rules:
+    - host: eks.abdimajidcloud.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eks-2048-service
+                port:
+                  number: 80

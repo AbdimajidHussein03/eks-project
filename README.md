@@ -1,80 +1,310 @@
-# Amazon EKS Platform with Terraform, GitOps & CI/CD
+# Amazon EKS Platform — Terraform, Kubernetes, GitOps & CI/CD
 
-A production-style Kubernetes platform built on **Amazon EKS**, provisioned with **Terraform** and deployed using **Helm and Argo CD**.
+<p align="center">
+  <strong>A production-style Kubernetes platform on AWS demonstrating infrastructure as code, secure CI/CD, GitOps delivery, automated DNS/TLS, workload hardening, and full-stack observability.</strong>
+</p>
 
-This project demonstrates an end-to-end DevOps workflow covering cloud infrastructure, Kubernetes, CI/CD, GitOps, container security, automated DNS/TLS, monitoring and workload security.
+<p align="center">
+  <a href="https://eks.abdimajidcloud.com"><strong>Live App</strong></a> ·
+  <a href="https://argocd.abdimajidcloud.com"><strong>Argo CD</strong></a> ·
+  <a href="https://prometheus.abdimajidcloud.com"><strong>Prometheus</strong></a> ·
+  <a href="https://grafana.abdimajidcloud.com"><strong>Grafana</strong></a>
+</p>
 
-The **2048 web application** is containerised with Docker, stored in Amazon ECR and deployed to EKS through a GitOps workflow. The application is exposed securely over HTTPS through a custom domain.
+<p align="center">
+  <img src="https://img.shields.io/badge/AWS-EKS-FF9900?logo=amazonaws&logoColor=white" alt="AWS EKS" />
+  <img src="https://img.shields.io/badge/Kubernetes-1.35-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes 1.35" />
+  <img src="https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white" alt="Terraform" />
+  <img src="https://img.shields.io/badge/Helm-Package_Manager-0F1689?logo=helm&logoColor=white" alt="Helm" />
+  <img src="https://img.shields.io/badge/Argo_CD-GitOps-EF7B4D?logo=argo&logoColor=white" alt="Argo CD" />
+  <img src="https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white" alt="GitHub Actions" />
+  <img src="https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white" alt="Prometheus" />
+  <img src="https://img.shields.io/badge/Grafana-Observability-F46800?logo=grafana&logoColor=white" alt="Grafana" />
+  <img src="https://img.shields.io/badge/Trivy-Container_Scanning-1904DA?logo=aqua&logoColor=white" alt="Trivy" />
+  <img src="https://img.shields.io/badge/Checkov-IaC_Security-6C47FF" alt="Checkov" />
+  <img src="https://img.shields.io/badge/OIDC%20%2F%20IRSA-Short--Lived_Identity-2EA44F" alt="OIDC IRSA" />
+  <img src="https://img.shields.io/badge/Route_53%20%2B%20ExternalDNS-Automated_DNS-8C4FFF" alt="Route 53 ExternalDNS" />
+  <img src="https://img.shields.io/badge/cert--manager-Let's_Encrypt_TLS-0B5FFF" alt="cert-manager" />
+</p>
 
 ---
 
-## Architecture
+## Executive Summary
 
-<img width="1426" height="711" alt="EKS Architecture Diagram" src="https://github.com/user-attachments/assets/f7131000-1575-4d2f-939c-83a8a3cd99bc" />
+This repository is an end-to-end DevOps / Platform Engineering project built around **Amazon EKS**. The goal was not simply to deploy a container to Kubernetes, but to design and operate the surrounding platform: networking, identity, infrastructure automation, delivery pipelines, GitOps reconciliation, DNS, TLS, security controls, monitoring, and repeatable cluster lifecycle management.
 
-The platform is split into three main layers:
+The platform is provisioned with **Terraform**, runs workloads on **private EKS worker nodes**, stores application images in **Amazon ECR**, and separates persistent bootstrap resources from disposable cluster infrastructure. **GitHub Actions** performs CI and security scanning, while **Argo CD** owns continuous delivery into Kubernetes using Helm-based desired state stored in Git.
 
-- **Infrastructure:** Terraform provisions the AWS networking, IAM and EKS infrastructure.
-- **CI/CD:** GitHub Actions scans, builds and publishes application images.
-- **GitOps:** Argo CD continuously reconciles the application state stored in Git with the EKS cluster.
+The current platform exposes four HTTPS endpoints when the environment is running:
 
-### Application Traffic Flow
+| Endpoint | Purpose |
+|---|---|
+| [`eks.abdimajidcloud.com`](https://eks.abdimajidcloud.com) | Public 2048 application |
+| [`argocd.abdimajidcloud.com`](https://argocd.abdimajidcloud.com) | GitOps control plane and application health |
+| [`prometheus.abdimajidcloud.com`](https://prometheus.abdimajidcloud.com) | Prometheus metrics and query interface |
+| [`grafana.abdimajidcloud.com`](https://grafana.abdimajidcloud.com) | Kubernetes observability dashboards |
+
+> **Note:** These endpoints are available while the EKS environment is running. The project is designed so the EKS environment can be destroyed and rebuilt while persistent bootstrap resources such as Terraform state and ECR remain intact.
+
+---
+
+## Quick Navigation
+
+### See It Working
+- [Platform Demo](#platform-demo)
+- [Live Endpoints](#live-endpoints)
+- [GitOps Evidence](#gitops-evidence)
+- [Observability Evidence](#observability-evidence)
+
+### Understand the Platform
+- [Architecture](#architecture)
+- [Traffic Flow](#application-traffic-flow)
+- [Networking](#networking)
+- [Amazon EKS](#amazon-eks)
+- [DNS & TLS](#dns--tls)
+- [Repository Structure](#repository-structure)
+
+### Understand Delivery
+- [CI/CD Overview](#cicd-overview)
+- [Terraform Pipeline](#pipeline-1--terraform-infrastructure)
+- [Application Pipeline](#pipeline-2--application-ci)
+- [GitOps with Argo CD](#gitops-with-argo-cd)
+- [Helm Deployment Model](#helm-deployment-model)
+
+### Understand Security & Operations
+- [Security Model](#security-model)
+- [Kubernetes Workload Hardening](#kubernetes-workload-hardening)
+- [Monitoring & Observability](#monitoring--observability)
+- [Resilience & Health Checks](#resilience--health-checks)
+- [Challenges & Troubleshooting](#challenges--troubleshooting)
+
+### Engineering Context
+- [Key Engineering Decisions](#key-engineering-decisions)
+- [Validation Checklist](#validation-checklist)
+- [Known Limitations & Next Iteration](#known-limitations--next-iteration)
+- [What I Learned](#what-i-learned)
+- [Interview Talking Points](#interview-talking-points)
+
+---
+
+# Platform Demo
+
+The application is deployed through the complete platform path rather than directly from a local machine. The demo below shows the live application running through the EKS ingress layer.
+
+![EKS Platform Demo](docs/images/platform-demo.gif)
+
+### What this demo represents
 
 ```text
-User
-  ↓
-Route 53
-  ↓
-AWS Load Balancer
-  ↓
-NGINX Ingress Controller
-  ↓
-Kubernetes Service
-  ↓
-2048 Pods
+Developer change
+      ↓
+GitHub
+      ↓
+GitHub Actions
+      ↓
+Build + security scanning
+      ↓
+Amazon ECR
+      ↓
+Helm desired state updated in Git
+      ↓
+Argo CD detects change
+      ↓
+Amazon EKS
+      ↓
+NGINX Ingress
+      ↓
+HTTPS application
 ```
 
-**ExternalDNS** synchronises Kubernetes ingress information with Route 53, while **cert-manager + Let's Encrypt** automate TLS certificate management.
-
 ---
 
-## Tech Stack
+# Live Endpoints
 
-| Area | Technology | Purpose |
+The platform uses a single DNS zone, `abdimajidcloud.com`, with dedicated subdomains for the application and operational tooling.
+
+| Service | URL | How it is exposed |
 |---|---|---|
-| Cloud | AWS | Hosts the infrastructure and Kubernetes platform |
-| IaC | Terraform | Provisions AWS infrastructure using reusable modules |
-| Kubernetes | Amazon EKS | Runs and orchestrates containerised workloads |
-| Containers | Docker | Packages the 2048 application |
-| Registry | Amazon ECR | Stores immutable application images |
-| Packaging | Helm | Templates and packages Kubernetes resources |
-| GitOps | Argo CD | Reconciles Git state with the EKS cluster |
-| CI/CD | GitHub Actions | Automates infrastructure and application pipelines |
-| Security | Trivy + Checkov | Scans container images and Terraform |
-| Ingress | NGINX | Routes external traffic into Kubernetes |
-| DNS | Route 53 + ExternalDNS | Automates application DNS |
-| TLS | cert-manager + Let's Encrypt | Automates HTTPS certificates |
-| Monitoring | Prometheus + Grafana | Collects and visualises cluster metrics |
+| Application | `https://eks.abdimajidcloud.com` | NGINX Ingress + ExternalDNS + cert-manager |
+| Argo CD | `https://argocd.abdimajidcloud.com` | NGINX Ingress + ExternalDNS + cert-manager |
+| Prometheus | `https://prometheus.abdimajidcloud.com` | NGINX Ingress + ExternalDNS + cert-manager |
+| Grafana | `https://grafana.abdimajidcloud.com` | NGINX Ingress + ExternalDNS + cert-manager |
+
+This means the operational tooling can be accessed through real HTTPS hostnames instead of relying on temporary `kubectl port-forward` sessions.
 
 ---
 
-## Repository Structure
+# Architecture
+
+The platform separates **infrastructure provisioning**, **application CI**, **GitOps delivery**, **runtime traffic**, and **observability**.
+
+```mermaid
+flowchart TB
+    Dev[Developer] --> GitHub[GitHub Repository]
+
+    subgraph CI[GitHub Actions CI]
+        TF[Terraform Pipeline]
+        APP[Application Pipeline]
+        CHECKOV[Checkov]
+        TRIVY[Trivy]
+    end
+
+    GitHub --> TF
+    GitHub --> APP
+    TF --> CHECKOV
+    APP --> TRIVY
+
+    subgraph AWS[AWS Cloud - eu-west-2]
+        R53[Amazon Route 53]
+        ECR[Amazon ECR]
+        S3[Amazon S3 - Terraform State]
+
+        subgraph VPC[VPC]
+            IGW[Internet Gateway]
+            NAT[NAT Gateway]
+            LB[AWS Load Balancer]
+
+            subgraph Public[Public Subnets - 3 AZs]
+                LB
+                NAT
+            end
+
+            subgraph Private[Private Subnets - 3 AZs]
+                subgraph EKS[Amazon EKS]
+                    NGINX[NGINX Ingress Controller]
+                    ARGO[Argo CD]
+                    EXT[ExternalDNS]
+                    PROM[Prometheus]
+                    GRAF[Grafana]
+                    SVC[Kubernetes Service]
+                    PODS[Application Pods]
+                end
+            end
+        end
+    end
+
+    TF --> AWS
+    APP --> ECR
+    APP -->|Commit immutable image SHA to Helm values| GitHub
+    GitHub --> ARGO
+    ARGO -->|Reconcile Helm desired state| EKS
+
+    User[Internet User] -->|HTTPS| IGW
+    IGW --> LB
+    LB --> NGINX
+    NGINX --> SVC
+    SVC --> PODS
+
+    R53 -. DNS records .-> LB
+    EXT -->|Synchronise DNS| R53
+
+    Private -->|Outbound egress| NAT
+    NAT --> IGW
+    IGW --> Internet[Internet]
+
+    PROM -->|Collect metrics| EKS
+    GRAF -->|Query Prometheus| PROM
+```
+
+### Architecture highlights
+
+- **Region:** AWS `eu-west-2`
+- **Amazon EKS:** Kubernetes `1.35`
+- **Availability:** VPC spans **3 Availability Zones**
+- **Worker placement:** EKS managed node group runs in **private subnets**
+- **Ingress:** internet-facing AWS load balancer fronts **NGINX Ingress Controller**
+- **Private egress:** private workloads use **one NAT Gateway** for outbound connectivity
+- **Persistent bootstrap layer:** S3 remote state and ECR survive normal cluster teardown
+- **GitOps:** Argo CD reconciles application and platform components from declarative sources
+- **Observability:** kube-prometheus-stack provides Prometheus and Grafana
+
+---
+
+## Application Traffic Flow
+
+It is important to separate **DNS resolution** from the actual network traffic path.
+
+### DNS resolution
+
+```text
+Browser requests eks.abdimajidcloud.com
+              ↓
+Amazon Route 53 resolves the hostname
+              ↓
+AWS Load Balancer address
+```
+
+### Request path
+
+```text
+Internet User
+     ↓ HTTPS
+AWS Load Balancer
+     ↓
+NGINX Ingress Controller
+     ↓
+Kubernetes ClusterIP Service
+     ↓
+2048 Application Pods
+```
+
+The Kubernetes `Deployment` manages the pods, but traffic does **not** pass through the Deployment object itself. The `Service` provides the stable internal endpoint used to reach healthy pods.
+
+---
+
+# Tech Stack
+
+| Area | Technology | Role in the platform |
+|---|---|---|
+| Cloud | AWS | Hosts networking, EKS, ECR, Route 53, IAM and state storage |
+| Kubernetes | Amazon EKS | Managed Kubernetes control plane and worker orchestration |
+| Infrastructure as Code | Terraform | Provisions AWS resources and EKS infrastructure |
+| Containers | Docker | Packages the application into an immutable runtime image |
+| Registry | Amazon ECR | Stores versioned application images |
+| Package Management | Helm | Templates Kubernetes application resources |
+| GitOps | Argo CD | Continuously reconciles desired state into EKS |
+| CI/CD | GitHub Actions | Automates Terraform and application build workflows |
+| Ingress | NGINX Ingress Controller | Routes host-based traffic into Kubernetes |
+| DNS | Route 53 + ExternalDNS | Automates DNS record lifecycle from Kubernetes |
+| TLS | cert-manager + Let's Encrypt | Automates certificate issuance and renewal |
+| Monitoring | Prometheus | Scrapes and stores Kubernetes metrics |
+| Visualisation | Grafana | Displays cluster CPU, memory and workload metrics |
+| Container Security | Trivy | Blocks HIGH / CRITICAL image vulnerabilities |
+| IaC Security | Checkov | Reports Terraform misconfiguration findings |
+| AWS CI Identity | GitHub OIDC | Provides short-lived AWS credentials to Actions |
+| Pod AWS Identity | EKS OIDC / IRSA | Gives ExternalDNS scoped AWS access without static keys |
+| Workload Security | NetworkPolicy + ServiceAccount | Restricts pod networking and Kubernetes identity |
+
+---
+
+# Repository Structure
 
 ```text
 eks-project/
 ├── .github/
 │   └── workflows/
-│       ├── terraform.yaml          # Infrastructure pipeline
-│       └── application.yaml        # Application CI pipeline
+│       ├── terraform.yaml                 # Infrastructure pipeline
+│       └── application.yaml               # Application CI pipeline
 │
 ├── app/
-│   ├── Dockerfile                  # 2048 NGINX image
-│   └── ...                         # Application assets
+│   ├── Dockerfile                         # NGINX Alpine runtime image
+│   ├── index.html
+│   ├── favicon.ico
+│   ├── js/
+│   ├── meta/
+│   └── style/
+│
+├── docs/
+│   └── images/
+│       ├── platform-demo.gif              # README application demo
+│       ├── argocd.png                     # GitOps evidence
+│       ├── prometheus.png                 # Metrics evidence
+│       └── grafana.png                    # Observability evidence
 │
 ├── helm/
 │   └── eks-2048/
 │       ├── Chart.yaml
-│       ├── values.yaml             # Image tag, replicas and configuration
+│       ├── values.yaml                    # Immutable image tag + runtime config
 │       └── templates/
 │           ├── deployment.yaml
 │           ├── service.yaml
@@ -84,231 +314,338 @@ eks-project/
 │
 ├── k8s/
 │   ├── clusterissuer.yaml
-│   └── clusterissuer-production.yaml
+│   ├── clusterissuer-production.yaml
+│   ├── argocd-ingress.yaml
+│   ├── prometheus-ingress.yaml
+│   ├── grafana-ingress.yaml
+│   ├── external-dns-application.yaml
+│   └── monitoring-application.yaml
 │
 ├── scripts/
-│   ├── bootstrap-cluster.sh        # Installs cluster platform components
-│   └── destroy-cluster.sh          # Safe cluster teardown
+│   ├── bootstrap-cluster.sh               # Installs/reconciles platform components
+│   └── destroy-cluster.sh                 # Safe cluster teardown
 │
 └── terraform/
-    ├── bootstrap/                  # Persistent S3 + ECR infrastructure
+    ├── bootstrap/                          # Persistent S3 state + ECR
     ├── environments/
-    │   └── prod/                   # Production EKS environment
-    └── modules/                    # Reusable Terraform modules
+    │   └── prod/                           # Production-style EKS environment
+    └── modules/                          # Reusable Terraform modules
+        └── iam/
+            ├── eks/                       # EKS IAM dependencies
+            └── external-dns/              # IRSA / Route 53 permissions
 ```
+
+> The exact module directory set may evolve as the project is refactored, but the key design remains the same: persistent bootstrap resources are isolated from the disposable EKS environment, and IAM dependencies are separated to avoid Terraform dependency cycles.
 
 ---
 
 # Infrastructure
 
-Terraform is responsible for provisioning the AWS infrastructure required by the EKS platform.
+## Networking
 
-### Networking
+The platform is built on a custom VPC spanning **three Availability Zones**.
 
-The environment includes:
+### Public layer
 
-- Multi-AZ VPC architecture
-- Public and private subnets
-- Internet Gateway for public connectivity
-- NAT Gateway for private subnet egress
-- Route tables
-- Security groups
-- EKS worker nodes running within private networking
+The public network layer contains internet-facing components, including:
 
-This keeps the Kubernetes worker layer away from direct inbound internet access while still allowing workloads to reach external services when required.
+- Internet Gateway
+- NAT Gateway
+- Public subnets across three AZs
+- Internet-facing AWS load balancer created for ingress traffic
 
-### Amazon EKS
+### Private layer
 
-Terraform provisions:
+EKS worker nodes are placed in private subnets so they do not require direct inbound internet exposure.
 
-- EKS cluster
+Private workloads that need outbound internet connectivity follow:
+
+```text
+Private subnet
+     ↓
+NAT Gateway
+     ↓
+Internet Gateway
+     ↓
+Internet
+```
+
+This gives worker workloads outbound access for tasks such as image pulls and package retrieval while keeping the worker layer away from direct public ingress.
+
+## Amazon EKS
+
+Terraform provisions the major EKS components:
+
+- EKS control plane
 - Managed node group
-- Cluster and node IAM roles
+- Cluster IAM role
+- Node IAM role
 - Security groups
 - OIDC integration
-- EKS managed add-ons
+- Managed cluster add-ons
 
-The following core EKS add-ons are explicitly managed:
+The cluster uses Kubernetes `1.35` with a managed node group configured with a desired capacity of two worker nodes and scaling boundaries around that baseline.
+
+### Managed add-ons
+
+The following EKS add-ons are represented explicitly in infrastructure as code:
 
 - **VPC CNI** — pod networking
 - **CoreDNS** — internal Kubernetes DNS
 - **kube-proxy** — Kubernetes service networking
 
-### Persistent Bootstrap Infrastructure
+This avoids treating core cluster networking components as invisible implementation details.
 
-Some resources should survive when the EKS environment is destroyed.
+---
 
-For this reason, the project separates:
+# Persistent Bootstrap Infrastructure
+
+Not every resource should be destroyed when the EKS environment is torn down.
+
+The project therefore separates persistent bootstrap resources from the cluster environment:
 
 ```text
-Bootstrap Infrastructure
-├── S3 → Terraform remote state
-└── ECR → Container images
+Bootstrap layer
+├── Amazon S3 → Terraform remote state
+└── Amazon ECR → Application container images
 
-EKS Environment
-├── Networking
-├── IAM
-├── EKS
-└── Supporting infrastructure
+Disposable EKS environment
+├── VPC networking
+├── IAM integrations
+├── EKS control plane
+├── Managed node group
+├── Ingress platform
+├── Monitoring platform
+└── Application workloads
 ```
 
-This means the cluster can be destroyed and rebuilt without deleting Terraform state or previously built container images.
+### Why this matters
+
+If the EKS environment is destroyed and rebuilt:
+
+- Terraform state remains available.
+- Existing ECR images are not unintentionally deleted.
+- Infrastructure can be reconstructed from source.
+- The project has a clearer lifecycle boundary between persistent and replaceable resources.
 
 ---
 
 # Docker
 
-The 2048 application is served using an **NGINX Alpine** container.
+The application is served from an **NGINX Alpine** container.
 
-Rather than copying the entire repository into the image, the Dockerfile copies only the assets required at runtime.
+```dockerfile
+FROM nginx:alpine
 
-This avoids unnecessary documentation, configuration and project files being included in the final image.
+RUN apk upgrade --no-cache
 
-### Container Security
+COPY index.html /usr/share/nginx/html/
+COPY favicon.ico /usr/share/nginx/html/
+COPY js /usr/share/nginx/html/js
+COPY meta /usr/share/nginx/html/meta
+COPY style /usr/share/nginx/html/style
 
-- **Minimal base image:** NGINX Alpine keeps the runtime lightweight.
-- **Restricted COPY:** Only application runtime assets are included.
-- **Image patching:** Alpine packages are upgraded during the build.
-- **Immutable tagging:** Images are tagged using the Git commit SHA.
-- **Trivy scanning:** HIGH and CRITICAL vulnerabilities block the application pipeline.
+EXPOSE 80
+```
 
-A multi-stage build was considered, but the application contains static HTML/CSS/JavaScript with no compilation stage. Adding a separate builder image would therefore provide little benefit compared with restricting the runtime files copied into NGINX.
+### Container design decisions
+
+- **Small runtime image:** `nginx:alpine`
+- **Restricted COPY:** only runtime application assets are copied
+- **Package patching:** Alpine packages are upgraded during build
+- **Immutable image tags:** every image is tagged with the Git commit SHA
+- **No fake multi-stage build:** the application is static HTML/CSS/JavaScript and has no compile stage, so adding a builder image would add complexity without meaningful benefit
 
 ---
 
-# CI/CD
+# CI/CD Overview
 
-The project contains **two GitHub Actions pipelines**, separating infrastructure management from application delivery.
+The project deliberately separates **infrastructure CI/CD** from **application CI**.
+
+```text
+                       GitHub
+                      /      \
+                     /        \
+        Terraform changes    Application changes
+               ↓                    ↓
+      Terraform Pipeline      Application Pipeline
+               ↓                    ↓
+          AWS / EKS          Build + Scan + ECR
+                                     ↓
+                           Update Helm desired state
+                                     ↓
+                                  Argo CD
+                                     ↓
+                                  Amazon EKS
+```
+
+This separation limits blast radius and makes the responsibility of each pipeline easier to reason about.
+
+---
 
 ## Pipeline 1 — Terraform Infrastructure
 
-The infrastructure pipeline manages the AWS/EKS environment using Terraform.
-
-GitHub Actions authenticates to AWS using **OIDC**, avoiding long-lived AWS access keys inside the repository.
+The Terraform workflow is scoped to infrastructure changes and performs:
 
 ```text
-GitHub
+Checkout
    ↓
-GitHub Actions
+Terraform Setup
    ↓
-OIDC
+GitHub OIDC → AWS IAM Role
    ↓
-AWS IAM Role
+terraform fmt -check
    ↓
-Terraform
+terraform init
    ↓
-AWS / EKS
+terraform validate
+   ↓
+terraform plan
+   ↓
+terraform apply
 ```
 
-This provides short-lived AWS credentials to the pipeline when required.
+### OIDC authentication
 
-### Successful Infrastructure Pipeline
+GitHub Actions does not store long-lived AWS access keys. Instead, the workflow requests a GitHub OIDC token and exchanges it for short-lived credentials through an AWS IAM role.
 
-<img width="230" height="52" alt="Terraform Pipeline" src="https://github.com/user-attachments/assets/6e737d3b-f77b-4618-9b16-c9a1e99e6444" />
+The trust relationship is restricted to the repository and `main` branch subject used by the project.
+
+### Why this is preferable
+
+- No static AWS access key in GitHub Secrets
+- Short-lived credentials
+- Repository / branch trust restrictions
+- Easier credential lifecycle management
 
 ---
 
 ## Pipeline 2 — Application CI
 
-Application changes trigger the second pipeline.
+The application pipeline performs the build-and-release preparation path:
 
 ```text
-Checkout
-   ↓
-Checkov
-   ↓
-AWS OIDC Authentication
-   ↓
+Checkout repository
+       ↓
+Checkov Terraform scan
+       ↓
+GitHub OIDC → AWS
+       ↓
+ECR Login
+       ↓
 Docker Build
-   ↓
-Trivy
-   ↓
-Push to ECR
-   ↓
-Update Helm Image Tag
-   ↓
-Commit Desired State to Git
+       ↓
+Trivy HIGH / CRITICAL scan
+       ↓
+Push image to Amazon ECR
+       ↓
+Update Helm values.yaml image tag
+       ↓
+Commit desired state to Git
+       ↓
+Argo CD reconciles deployment
 ```
 
-### Security Scanning
+### Immutable image tagging
 
-**Checkov** scans the Terraform configuration for infrastructure misconfigurations.
-
-**Trivy** scans the built container image and acts as a security gate for HIGH and CRITICAL vulnerabilities.
-
-### Immutable Image Tags
-
-Images are tagged using:
+Images use:
 
 ```text
 ${{ github.sha }}
 ```
 
-rather than `latest`.
+instead of `latest`.
 
-This creates a direct relationship between:
+That produces a traceable chain:
 
 ```text
-Git Commit
-    ↕
-Docker Image
-    ↕
+Git Commit SHA
+      ↕
+ECR Image Tag
+      ↕
 Helm values.yaml
-    ↕
-Running Kubernetes Deployment
+      ↕
+Kubernetes Deployment
 ```
 
-making deployments easier to trace and reason about.
+### Pipeline security behaviour
 
-### Successful Application Pipeline
-
-<img width="240" height="52" alt="Application Pipeline" src="https://github.com/user-attachments/assets/4bbd285a-30ac-4600-8baf-22542e270ea8" />
+- **Trivy** is a blocking gate for `HIGH` and `CRITICAL` vulnerabilities.
+- **Checkov** scans Terraform configuration and reports infrastructure security findings.
+- The current Checkov step is advisory (`soft_fail`) rather than a hard deployment gate, which is documented as a future hardening opportunity.
 
 ---
 
 # GitOps with Argo CD
 
-The application deployment follows a **GitOps model**.
+Argo CD owns continuous delivery into Kubernetes. GitHub Actions does **not** deploy the application directly with `kubectl`.
 
-GitHub Actions does **not** directly run `kubectl` to deploy the 2048 application.
+The application release path is:
 
-Instead:
+1. Developer pushes a change.
+2. GitHub Actions builds the Docker image.
+3. Trivy scans the image.
+4. The image is pushed to ECR using the Git SHA as the tag.
+5. GitHub Actions updates the Helm image tag in Git.
+6. Argo CD detects the desired-state change.
+7. Argo CD renders the Helm chart.
+8. Argo CD synchronises the cluster.
+9. Kubernetes rolls the workload to the new image.
 
-1. GitHub Actions builds the application image.
-2. Trivy scans the image.
-3. The image is pushed to ECR.
-4. GitHub Actions updates the image SHA in `helm/eks-2048/values.yaml`.
-5. The change is committed back to Git.
-6. Argo CD detects the new desired state.
-7. Argo CD renders the Helm chart and synchronises EKS.
+### Argo CD reconciliation behaviour
 
-```text
-Git
- ↓
-Helm Desired State
- ↓
-Argo CD
- ↓
-Amazon EKS
-```
-
-Argo CD uses:
+The application uses:
 
 - **Automated sync**
 - **Self-healing**
 - **Pruning**
 
-This keeps **Git as the source of truth** for the application.
+This makes Git the source of truth for the application desired state.
 
-### Argo CD — Synced & Healthy
+## Platform components under Argo CD
 
-<img width="1862" height="1062" alt="Argo CD" src="https://github.com/user-attachments/assets/bb9d2aaa-6d81-4e4d-b24b-e4941379693b" />
+Argo CD is not limited to the application. It also manages major Kubernetes platform components:
+
+| Argo Application | Source | Purpose |
+|---|---|---|
+| `eks-2048` | This repository / custom Helm chart | Application workload |
+| `external-dns` | ExternalDNS Helm repository | Automated Route 53 record management |
+| `monitoring` | Prometheus Community Helm repository | kube-prometheus-stack |
+
+ExternalDNS still receives AWS permissions through Terraform-managed IAM / IRSA, while Argo CD owns the Kubernetes Helm release. This creates a useful ownership boundary:
+
+```text
+Terraform
+   ↓
+AWS IAM + IRSA identity
+
+Argo CD
+   ↓
+ExternalDNS Kubernetes release
+```
 
 ---
 
-# Kubernetes
+# GitOps Evidence
 
-The 2048 application is packaged using a custom **Helm chart**.
+All three Argo CD applications are shown as **Healthy** and **Synced** through the custom HTTPS Argo CD endpoint.
+
+![Argo CD applications healthy and synced](docs/images/argocd.png)
+
+This screenshot demonstrates:
+
+- Argo CD reachable over `argocd.abdimajidcloud.com`
+- `eks-2048` healthy and synced
+- `external-dns` healthy and synced
+- `monitoring` healthy and synced
+- no degraded applications
+- no out-of-sync applications
+
+---
+
+# Helm Deployment Model
+
+The application is packaged as a custom Helm chart under `helm/eks-2048`.
 
 The chart manages:
 
@@ -317,236 +654,661 @@ The chart manages:
 - Ingress
 - ServiceAccount
 - NetworkPolicy
-- Resource requests and limits
+- CPU / memory requests and limits
 - Readiness probe
 - Liveness probe
+- Image repository and immutable image tag
 
-### Resource Management
-
-Each application pod defines CPU and memory requests and limits.
-
-Requests help Kubernetes schedule workloads appropriately, while limits prevent a single application container from consuming excessive node resources.
-
-### Health Probes
-
-**Readiness probes** determine whether a pod is ready to receive traffic from the Service.
-
-**Liveness probes** allow Kubernetes to restart a container if the application becomes unhealthy.
+This avoids duplicating near-identical raw Kubernetes manifests and gives the GitOps flow a single configurable source for workload deployment.
 
 ---
 
-# DNS & HTTPS
+# DNS & TLS
 
-DNS and certificate management are automated inside the platform.
+DNS and TLS are automated rather than manually maintained.
 
 ## ExternalDNS
 
-ExternalDNS watches Kubernetes resources and synchronises the required records with **Amazon Route 53**.
+ExternalDNS watches Kubernetes ingress resources and synchronises the required DNS records into Amazon Route 53.
 
-This means DNS does not need to be manually updated whenever the ingress load balancer changes.
+Current ExternalDNS configuration includes:
+
+- Provider: AWS
+- Domain filter: `abdimajidcloud.com`
+- Policy: `sync`
+- Registry: TXT
+- TXT owner ID: `eks-project`
+- ServiceAccount: externally managed for IRSA
+
+This means a hostname declared in Kubernetes can be reconciled into Route 53 without manually copying load balancer addresses.
 
 ## cert-manager
 
-cert-manager integrates with **Let's Encrypt** to automate TLS certificate creation and renewal.
+cert-manager requests and renews public certificates from **Let's Encrypt**.
 
-The final application is therefore available over HTTPS at:
+The production ClusterIssuer is:
+
+```text
+letsencrypt-production
+```
+
+Ingress resources declare the hostname and TLS secret; cert-manager performs the ACME challenge and stores the issued certificate as a Kubernetes Secret.
+
+### Current HTTPS endpoints
 
 ```text
 https://eks.abdimajidcloud.com
+https://argocd.abdimajidcloud.com
+https://prometheus.abdimajidcloud.com
+https://grafana.abdimajidcloud.com
 ```
 
 ---
 
-# Security
+# Security Model
 
-Security is implemented across the infrastructure, CI/CD and Kubernetes layers.
+Security controls exist across AWS identity, CI, container build, Kubernetes identity, pod networking, and application runtime.
 
-### CI/CD Security
+## AWS / CI Identity
 
-- GitHub OIDC instead of static AWS credentials
-- Checkov Terraform scanning
-- Trivy container vulnerability scanning
-- HIGH/CRITICAL vulnerabilities gate the container pipeline
-- Immutable SHA-based container tags
+### GitHub Actions → AWS
 
-### Kubernetes Security
+GitHub Actions uses **OIDC** to assume AWS IAM roles rather than storing static AWS access keys.
 
-- Dedicated application ServiceAccount
-- Automatic ServiceAccount token mounting disabled
-- Container privilege escalation disabled
-- NetworkPolicy restricts application ingress
-- Resource requests and limits
-- Readiness and liveness probes
+### ExternalDNS → AWS
 
-### Network Isolation
+ExternalDNS uses **IRSA** through the EKS OIDC issuer to receive scoped Route 53 permissions.
 
-A NetworkPolicy restricts access to the 2048 workload so application traffic is expected through the ingress layer rather than arbitrary direct pod access.
+These are two different trust paths:
 
-The policy is enforced through the EKS VPC CNI networking layer.
+```text
+GitHub OIDC
+   ↓
+AWS IAM role for CI
+```
+
+and:
+
+```text
+EKS OIDC / IRSA
+   ↓
+AWS IAM role for ExternalDNS pod
+```
+
+Keeping those concepts separate is an important part of the platform's identity design.
+
+---
+
+## Kubernetes Workload Hardening
+
+The application workload includes several security controls.
+
+### Dedicated ServiceAccount
+
+The application uses its own ServiceAccount:
+
+```text
+eks-2048
+```
+
+and disables automatic API token mounting:
+
+```yaml
+automountServiceAccountToken: false
+```
+
+This reduces unnecessary Kubernetes API credentials inside the application pod.
+
+### Prevent privilege escalation
+
+The container security context includes:
+
+```yaml
+securityContext:
+  allowPrivilegeEscalation: false
+```
+
+An earlier attempt to apply more aggressive Linux capability removal broke NGINX runtime behaviour. The final control set was chosen based on actual runtime validation rather than keeping a security setting that made the application unusable.
+
+### NetworkPolicy
+
+A Kubernetes NetworkPolicy restricts application ingress so that traffic is expected through the `ingress-nginx` namespace on TCP port 80.
+
+The control was validated by confirming:
+
+- normal website traffic through NGINX continued to work
+- direct pod-IP access was blocked
+
+This makes the policy a tested control rather than a YAML-only claim.
+
+---
+
+# Resilience & Health Checks
+
+The application defines CPU / memory controls and both readiness and liveness probes.
+
+## Resource requests and limits
+
+```yaml
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+```
+
+Requests help the scheduler make placement decisions, while limits place an upper bound on runtime resource consumption.
+
+## Readiness probe
+
+```yaml
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+```
+
+The readiness probe answers:
+
+> **Should Kubernetes send traffic to this pod?**
+
+## Liveness probe
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+```
+
+The liveness probe answers:
+
+> **Should Kubernetes restart this container?**
 
 ---
 
 # Monitoring & Observability
 
-The cluster uses the **kube-prometheus-stack**, providing Prometheus and Grafana.
+The platform uses **kube-prometheus-stack**, which deploys Prometheus, Grafana and supporting Kubernetes exporters / monitoring resources.
+
+The monitoring stack is itself managed as an Argo CD application.
 
 ## Prometheus
 
-Prometheus collects Kubernetes and workload metrics including:
+Prometheus collects metrics across Kubernetes components and workloads, including:
 
-- Pod health
-- Node metrics
+- node health
+- pod health
+- kubelet metrics
 - CPU utilisation
-- Memory utilisation
-- Namespace metrics
+- memory utilisation
+- namespace-level resource usage
+- kube-state-metrics data
+- application / infrastructure scrape targets
 
-<img width="1913" height="867" alt="Prometheus" src="https://github.com/user-attachments/assets/92150f3a-aa1c-4c98-9eca-2aa6e1728530" />
+## Observability Evidence — Prometheus
+
+The screenshot below runs the PromQL query:
+
+```promql
+up
+```
+
+and returns active scrape targets from the EKS environment.
+
+![Prometheus up query showing live EKS scrape targets](docs/images/prometheus.png)
+
+The `up` metric is particularly useful as evidence because it shows Prometheus is not merely reachable; it is actively scraping live cluster targets.
 
 ## Grafana
 
-Grafana provides dashboards for visualising the metrics collected by Prometheus.
+Grafana queries Prometheus and provides prebuilt Kubernetes dashboards.
 
-The dashboards were used to inspect cluster resources and the running 2048 workload.
+The cluster dashboard below shows real metrics from the running EKS platform, including:
 
-<img width="1852" height="960" alt="Grafana" src="https://github.com/user-attachments/assets/d9fe1b3f-bdfe-433f-93e4-d95fb0a58f02" />
+- CPU utilisation
+- CPU request / limit commitment
+- memory utilisation
+- memory request / limit commitment
+- namespace CPU usage
+- namespace memory usage
+- pod and workload counts
 
----
+## Observability Evidence — Grafana
 
-# Application
+![Grafana Kubernetes compute resources dashboard](docs/images/grafana.png)
 
-The completed platform serves the 2048 application at:
+At the time of the screenshot, the dashboard was visualising live usage from namespaces including:
 
-```text
-https://eks.abdimajidcloud.com
-```
-
-<img width="1886" height="1058" alt="2048 Application" src="https://github.com/user-attachments/assets/3b9fa61d-2dcd-460a-ad7a-81cf7841de15" />
+- `argocd`
+- `cert-manager`
+- `default`
+- `external-dns`
+- `ingress-nginx`
+- `kube-system`
+- `monitoring`
 
 ---
 
 # Challenges & Troubleshooting
 
-A significant part of the project involved debugging real integration issues across AWS, Kubernetes and CI/CD.
+The strongest learning from this project came from integration failures rather than the happy path.
 
-### Trivy Blocking the Pipeline
+## 1. ALB / ingress path and security group debugging
 
-The application pipeline initially failed because Trivy detected HIGH-severity vulnerabilities in packages within the NGINX Alpine base image.
+During earlier container-platform work, traffic failures reinforced the importance of tracing the full request path rather than assuming a healthy load balancer means the workload is reachable.
 
-Instead of disabling the security gate, the image was patched and rebuilt until it passed the required vulnerability threshold.
+For this EKS project, the same principle was applied to:
 
-**Lesson:** security scanning should influence the build rather than simply exist as a checkbox.
+```text
+DNS → Load Balancer → NGINX → Service → Pod
+```
 
-### Kubernetes Network Security
+Each layer was verified independently.
 
-Applying an overly restrictive container capability configuration caused NGINX startup operations to fail with permission errors.
+## 2. Trivy blocked the application pipeline
 
-The security context was adjusted rather than blindly keeping a configuration that prevented the application from running.
+The application pipeline initially failed because Trivy found HIGH-severity vulnerabilities in the NGINX Alpine image packages.
 
-NetworkPolicy enforcement was then tested by attempting direct pod access while confirming that traffic through NGINX continued to work.
+Instead of disabling the security gate, the image build was patched using:
 
-**Lesson:** security controls need to be validated against real application behaviour.
+```dockerfile
+RUN apk upgrade --no-cache
+```
 
-### ExternalDNS & Stale DNS
+and rebuilt until the HIGH / CRITICAL scan passed.
 
-During cluster rebuilds, stale Route 53 records pointed toward an old AWS load balancer.
+**Lesson:** a security scanner should be allowed to change engineering decisions, not exist only for screenshots.
 
-ExternalDNS ownership and synchronisation were corrected so DNS records could follow the current infrastructure and stale records could be cleaned up during teardown.
+## 3. GitHub OIDC authentication failure
 
-**Lesson:** resources created indirectly by Kubernetes need lifecycle handling just as much as Terraform-managed resources.
+The Terraform and application pipelines temporarily failed at AWS authentication with:
 
-### Terraform Resource Dependencies
+```text
+Not authorized to perform sts:AssumeRoleWithWebIdentity
+```
 
-IAM resources required by the EKS cluster and IAM resources depending on the EKS OIDC issuer could not simply be merged into one Terraform module without creating a dependency cycle.
+The OIDC token subject and IAM role trust policy were inspected directly. The repository uses GitHub's immutable repository subject format, and the emitted `sub` / `aud` values were validated against the AWS IAM trust relationship.
 
-The IAM structure was reorganised while keeping the required dependency boundaries.
+A successful rerun confirmed the role assumption path without weakening the trust policy.
 
-**Lesson:** Terraform module organisation should follow dependency relationships, not just resource categories.
+**Lesson:** debug identity failures by comparing the actual token claims with the trust policy rather than guessing at IAM changes.
+
+## 4. Git push rejected from the application pipeline
+
+After the build, scan and ECR push succeeded, the pipeline's GitOps commit failed with a non-fast-forward error because remote `main` had newer commits than the workflow checkout.
+
+The pipeline was corrected to rebase before pushing the updated Helm image tag:
+
+```bash
+git pull --rebase origin main
+git push origin main
+```
+
+**Lesson:** CI jobs that write back to Git must account for repository movement while the job is running.
+
+## 5. ExternalDNS stale ownership / DNS state
+
+During rebuilds, DNS state briefly pointed at stale infrastructure and ACME challenges were delayed.
+
+ExternalDNS ownership records and sync behaviour were investigated until Route 53 converged on the current load balancer. cert-manager then completed the challenge and issued valid certificates.
+
+**Lesson:** Kubernetes-created cloud resources still have lifecycle and ownership state that must be understood during teardown and rebuild.
+
+## 6. Argo CD custom-domain TLS termination
+
+Argo CD originally required local access. To expose it cleanly through NGINX:
+
+1. `server.insecure` was enabled in `argocd-cmd-params-cm`.
+2. The Argo server Deployment was restarted to load the setting.
+3. An Ingress routed `argocd.abdimajidcloud.com` to `argocd-server:80`.
+4. ExternalDNS created DNS.
+5. cert-manager issued the public TLS certificate.
+
+This produces:
+
+```text
+Browser HTTPS
+     ↓
+NGINX terminates TLS
+     ↓
+argocd-server HTTP :80
+```
+
+## 7. Monitoring migration created a duplicate stack
+
+When monitoring was first added to Argo CD, the existing Helm release was named `kube-prometheus-stack`, while Argo attempted to create a second release named `monitoring`.
+
+That produced duplicate Grafana / Prometheus resources and pending node-exporter pods.
+
+The Argo Application was corrected with:
+
+```yaml
+helm:
+  releaseName: kube-prometheus-stack
+```
+
+Argo then adopted the intended release identity and returned to **Healthy / Synced**.
+
+**Lesson:** Helm release identity matters when migrating existing releases into GitOps ownership.
+
+## 8. Terraform IAM dependency cycle
+
+EKS IAM resources and ExternalDNS IAM resources could not be merged blindly into a single module because ExternalDNS IRSA depends on the EKS OIDC issuer, while EKS itself depends on IAM resources.
+
+The IAM layout was reorganised into separate dependency-aware modules:
+
+```text
+terraform/modules/iam/
+├── eks/
+└── external-dns/
+```
+
+**Lesson:** Terraform module boundaries should follow dependency direction, not just resource category names.
 
 ---
 
 # Key Engineering Decisions
 
-### GitOps instead of direct CI deployment
+## CI builds; Argo CD deploys
 
-GitHub Actions handles **CI**, while Argo CD owns **CD** into Kubernetes.
+GitHub Actions handles CI responsibilities such as validation, scanning, image build and publishing. Argo CD owns Kubernetes reconciliation.
 
-This prevents the application pipeline from requiring direct Kubernetes deployment access and keeps Git as the desired-state source.
+This avoids giving the application pipeline direct `kubectl` deployment responsibility.
 
-### Immutable deployments
+## Git is the desired-state source
 
-Git commit SHAs are used as image tags rather than `latest`, improving deployment traceability.
+The release is represented by an immutable SHA in Helm values. Argo CD continuously reconciles this state into the cluster.
 
-### Persistent ECR and Terraform state
+## Immutable deployments
 
-S3 and ECR are managed separately from the disposable EKS environment so they survive cluster rebuilds.
+The Git SHA is used as the container image tag rather than `latest`, making rollouts traceable to source commits.
 
-### Security gates remain active
+## Persistent ECR and Terraform state
 
-When Trivy identified vulnerabilities, the container was fixed rather than weakening the pipeline.
+ECR and S3 remote state are separated from the disposable EKS environment to prevent normal teardown from destroying critical persistent assets.
 
-### Explicit EKS add-on management
+## One NAT Gateway for the project environment
 
-VPC CNI, CoreDNS and kube-proxy are managed through Terraform so important cluster components are represented in infrastructure as code.
+A single NAT Gateway keeps the learning / portfolio environment simpler and cheaper while still demonstrating private-subnet egress. A highly available production design would normally evaluate NAT redundancy per AZ against cost requirements.
+
+## Security controls are tested against runtime behaviour
+
+Controls such as Trivy gates, NetworkPolicy and container security contexts were not treated as decorative YAML. They were validated against the application and adjusted when a control prevented legitimate runtime behaviour.
+
+## ExternalDNS IAM remains Terraform-owned
+
+Argo manages the Kubernetes release, while Terraform manages the AWS IAM role / IRSA integration. This keeps cloud identity in infrastructure as code while still gaining GitOps reconciliation for the cluster component.
+
+---
+
+# Validation Checklist
+
+The platform has been validated through the following checks:
+
+### Infrastructure
+
+- [x] Terraform environment rebuilt successfully
+- [x] EKS worker nodes reached `Ready`
+- [x] CoreDNS, kube-proxy and VPC CNI running
+- [x] private worker networking functional
+- [x] outbound private-subnet connectivity functional through NAT
+
+### Application
+
+- [x] application pods `Running`
+- [x] NGINX ingress reachable
+- [x] public application hostname resolves
+- [x] HTTPS certificate issued
+- [x] NetworkPolicy blocks direct pod ingress while normal ingress traffic continues
+- [x] readiness and liveness probes configured
+- [x] resource requests and limits configured
+
+### CI/CD
+
+- [x] Terraform workflow green
+- [x] GitHub OIDC role assumption successful
+- [x] application workflow green
+- [x] Docker build successful
+- [x] Trivy HIGH / CRITICAL scan successful
+- [x] ECR push successful
+- [x] Helm image tag write-back successful
+
+### GitOps
+
+- [x] `eks-2048` Healthy / Synced
+- [x] `external-dns` Healthy / Synced
+- [x] `monitoring` Healthy / Synced
+- [x] automated sync enabled
+- [x] pruning enabled
+- [x] self-healing enabled
+
+### DNS / TLS
+
+- [x] `eks.abdimajidcloud.com`
+- [x] `argocd.abdimajidcloud.com`
+- [x] `prometheus.abdimajidcloud.com`
+- [x] `grafana.abdimajidcloud.com`
+- [x] Let's Encrypt production certificates issued
+
+### Observability
+
+- [x] Prometheus scraping live EKS targets
+- [x] `up` query returns active targets
+- [x] Grafana Kubernetes dashboards populated
+- [x] CPU / memory / namespace usage visible
+
+---
+
+# Known Limitations & Next Iteration
+
+This project intentionally describes itself as **production-style**, not production-grade. The current design demonstrates the patterns, while leaving several areas that would need additional controls for a true production service.
+
+## Planned improvements
+
+### Replace the demo workload
+
+The 2048 application is useful for proving the platform, but the next iteration will use a more substantial service with a real application runtime, API behaviour and potentially persistent data.
+
+### Protect operational UIs
+
+Prometheus and Grafana currently demonstrate external HTTPS ingress. A production environment should place operational tooling behind stronger access controls such as SSO, VPN / private access, identity-aware proxying, or tightly controlled ingress.
+
+### Harden Checkov enforcement
+
+Checkov currently reports findings in advisory mode. The next iteration can classify findings, remediate high-value issues, suppress only documented exceptions, and move selected controls into blocking mode.
+
+### NAT high availability
+
+The project currently uses one NAT Gateway. Production requirements may justify a NAT Gateway per AZ to reduce cross-AZ dependency and improve egress resilience.
+
+### Tighten IAM further
+
+The application CI role can be reduced from broad ECR permissions to the smallest set of repository actions required for build-and-push workflows.
+
+### Alerting and SLOs
+
+Prometheus and Grafana provide visibility today. A stronger operational iteration would add:
+
+- actionable alert rules
+- service-level indicators
+- availability / latency SLOs
+- notification routing
+- documented runbooks
 
 ---
 
 # What I Learned
 
-This project strengthened my practical understanding of:
+This project strengthened practical understanding across the complete platform lifecycle:
 
-- AWS VPC networking for Kubernetes
-- Amazon EKS and managed node groups
-- Terraform modules and dependency management
-- Terraform remote state
-- Kubernetes Deployments, Services, Ingress and Pods
-- Kubernetes networking and NetworkPolicy
-- Helm chart development
-- GitOps with Argo CD
-- GitHub Actions CI/CD
-- AWS OIDC authentication
-- Docker image security
-- Trivy and Checkov
-- Route 53 and ExternalDNS
-- cert-manager and Let's Encrypt
-- Prometheus and Grafana
-- Debugging IAM, DNS, TLS, networking and CI/CD failures
+### AWS & Networking
+
+- VPC design across multiple Availability Zones
+- public vs private subnet responsibilities
+- Internet Gateway vs NAT Gateway
+- security groups and traffic paths
+- Route 53 record lifecycle
+
+### Kubernetes
+
+- EKS architecture
+- nodes, pods, Deployments and Services
+- ingress routing
+- namespace boundaries
+- health probes
+- resource requests / limits
+- ServiceAccounts
+- NetworkPolicy
+
+### Infrastructure as Code
+
+- reusable Terraform modules
+- remote state
+- dependency ordering
+- bootstrap vs disposable resources
+- IAM / OIDC dependencies
+
+### Delivery
+
+- GitHub Actions
+- OIDC federation
+- Docker build and ECR publishing
+- immutable SHA tags
+- Helm templating
+- GitOps reconciliation
+- Argo CD sync, pruning and self-healing
+
+### Security
+
+- Trivy container scanning
+- Checkov IaC scanning
+- pod security context
+- IRSA
+- least-privilege ServiceAccounts
+- network isolation
+
+### Operations
+
+- Prometheus metrics
+- Grafana dashboards
+- DNS troubleshooting
+- ACME / TLS debugging
+- IAM trust-policy debugging
+- Git race conditions in CI
+- Helm-to-Argo migration issues
+
+---
+
+# Interview Talking Points
+
+If discussing this project in an interview, the strongest areas are not simply the list of tools. The useful engineering stories are the decisions and failures behind them.
+
+### “Walk me through the platform.”
+
+Start with:
+
+```text
+Terraform provisions AWS / EKS
+→ GitHub Actions builds and scans
+→ ECR stores immutable images
+→ Git stores Helm desired state
+→ Argo CD reconciles EKS
+→ NGINX exposes workloads
+→ ExternalDNS + cert-manager automate DNS / HTTPS
+→ Prometheus + Grafana provide observability
+```
+
+### “Why Argo CD instead of deploying from GitHub Actions?”
+
+Because CI should not need direct deployment access to Kubernetes. GitHub Actions produces the artifact and desired-state update; Argo CD continuously reconciles that state inside the cluster.
+
+### “What was one difficult issue?”
+
+Good examples from this project include:
+
+- OIDC role-assumption debugging
+- non-fast-forward Git write-back from Actions
+- duplicate monitoring releases during Helm → Argo adoption
+- ExternalDNS / ACME convergence during rebuild
+- Terraform IAM dependency-cycle design
+- security controls that initially broke NGINX runtime behaviour
+
+### “How is the project secured?”
+
+Discuss identity, scanning and workload controls together:
+
+- GitHub OIDC instead of static AWS keys
+- IRSA for ExternalDNS
+- Trivy blocking HIGH / CRITICAL image vulnerabilities
+- Checkov IaC scanning
+- dedicated ServiceAccount
+- disabled automatic token mounting
+- no privilege escalation
+- NetworkPolicy
+- private EKS workers
+- automated HTTPS
 
 ---
 
 # Project Outcome
 
-The final project demonstrates a complete application delivery path:
+The final platform demonstrates a complete application delivery and operations lifecycle:
 
 ```text
 Terraform
-    ↓
-AWS / EKS Infrastructure
-    ↓
+   ↓
+AWS Networking + IAM + EKS
+   ↓
 GitHub Actions
-    ↓
+   ↓
 Security Scanning
-    ↓
-Docker / ECR
-    ↓
-Helm Desired State
-    ↓
+   ↓
+Docker + Amazon ECR
+   ↓
+Helm Desired State in Git
+   ↓
 Argo CD
-    ↓
+   ↓
 Amazon EKS
-    ↓
-NGINX / Route 53 / HTTPS
-    ↓
-2048 Application
-    ↓
-Prometheus & Grafana
+   ↓
+NGINX Ingress
+   ↓
+Route 53 + ExternalDNS + Let's Encrypt TLS
+   ↓
+Application
+   ↓
+Prometheus + Grafana Observability
 ```
 
-The result is a reproducible EKS platform with **Infrastructure as Code, automated CI, GitOps delivery, workload security, DNS/TLS automation and observability**.
+The result is a reproducible, production-style EKS platform demonstrating:
+
+- **Infrastructure as Code**
+- **private Kubernetes worker networking**
+- **short-lived cloud identity**
+- **automated CI**
+- **container security scanning**
+- **GitOps continuous delivery**
+- **Helm-based Kubernetes packaging**
+- **automated DNS and TLS**
+- **workload security controls**
+- **live cluster monitoring and observability**
+- **repeatable teardown and rebuild workflows**
 
 ---
 
 ## Author
 
-**Abdimajid Hussein**
+**Abdimajid Hussein**  
+DevOps / Platform Engineer · London, UK
 
-DevOps / Platform Engineer | London, UK

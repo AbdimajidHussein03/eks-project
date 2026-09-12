@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: eks-2048
+  labels:
+    app: eks-2048
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: eks-2048
+
+  template:
+    metadata:
+      labels:
+        app: eks-2048
+
+    spec:
+      containers:
+        - name: eks-2048
+          image: 583931059504.dkr.ecr.eu-west-2.amazonaws.com/eks-2048:v1.0.0
+          ports:
+            - containerPort: 80
