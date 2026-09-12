@@ -75,10 +75,7 @@ The current platform exposes four HTTPS endpoints when the environment is runnin
 
 ### Engineering Context
 - [Key Engineering Decisions](#key-engineering-decisions)
-- [Validation Checklist](#validation-checklist)
-- [Known Limitations & Next Iteration](#known-limitations--next-iteration)
-- [What I Learned](#what-i-learned)
-- [Interview Talking Points](#interview-talking-points)
+
 
 ---
 
